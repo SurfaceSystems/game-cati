@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cati</title>
+    <style>
+        body {
+            font-family: monospace;
+            background-color: black;
+            color: white;
+            font-size: 20px;
+            user-select: none; /* Prevent text selection */
+        }
+        .cat-line {
+            position: absolute;
+            font-size: 20px;
+        }
+        .arrow {
+            color: white;
+            position: fixed;
+            font-size: 20px;
+        }
+        .heart {
+            color: red;
+            animation: blink-animation 1s infinite;
+        }
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            border: 2px solid grey;
+            border-left-width: 8px;
+            border-right-width: 8px;
+            text-align: center;
+        }
+        .game-over-message {
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 10px;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+        .control-button {
+            font-size: 24px;
+            margin: 5px;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #hearts {
+            position: fixed;
+            top: 0px;
+            left: 280px;
+        }
+        #lives {
+            position: fixed;
+            top: 0px;
+            left: 200px;
+            color: white;
+        }
+        #scoreboard {
+            position: fixed;
+            top: 0px;
+            left: 0px;
+        }
+    </style>
+</head>
+<body>
+
+<span class="cat-line" style="top: 00px; left: 0px;">&nbsp;/\_/\<br/></span>
+<span class="cat-line" style="top: 12px; left: 0px;">( o.o )<br/></span>
+<span class="cat-line" style="top: 34px; left: 0px;">&nbsp;> ^ <</span>
+<div id="fruit" style="z-index:100;color:green;position: fixed;font-size:20px;">♣</div>
+<span id="scoreboard">Score: 0</span>
+<div id="hearts"></div>
+<span id="lives">Lives: </span>
+<div id="gameover" style="display:none;height: 200px;width: 600px;text-align: center;position: absolute;top: 50%;left: 50%;transform: translate(-50%,-50%);">
+    <span style="text-decoration: underline;font-weight: bold;">Game Over</span>
+    <div style="margin-top: 20px;">Press any key to try again.</div>
+</div>
+
+<div class="controls" style="width: 202px;">
+    <button class="control-button" style="width: 50px;" onclick="moveCat('w')">W</button><br>
+    <button class="control-button" style="width: 50px;" onclick="moveCat('a')">A</button>
+    <button class="control-button"  style="width: 50px;"onclick="moveCat('s')">S</button>
+    <button class="control-button"  style="width: 50px;"onclick="moveCat('d')">D</button><br>
+    <button class="control-button" onclick="moveCat(' ')" style="width: 80px;">Space</button>
+    <button class="control-button"  style="width: 50px;"onclick="togglePause()">P</button>
+</div>
+
+<script>
+    let catY = 0;
+    let catX = 0;
+    let score = 0;
+    let lives = 3; // Start with 5 lives
+    let fruitX = 0;
+    let fruitY = 0;
+    let arrows = [];
+    let isPaused = false;
+
+    // Determine device type
+    const deviceType = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
+    
+    // Adjust game size and fruit generation based on device type
+    let gameWidth, gameHeight, maxFruitX, maxFruitY;
+    if (deviceType === 'mobile') {
+        gameWidth = window.innerWidth;
+        gameHeight = window.innerHeight;
+        maxFruitX = gameWidth - 40;
+        maxFruitY = gameHeight - 80;
+    } else {
+        gameWidth = 600;
+        gameHeight = 500;
+        maxFruitX = 600 - 40;
+        maxFruitY = 500 - 80;
+        // Add key event listeners for desktop users
+        document.addEventListener("keydown", function(event) {
+           if (event.key === "p" || event.key === "P") {
+                togglePause();
+            } else {
+                moveCat(event.key);
+            }
+        });
+        document.querySelectorAll(".controls").forEach(con => con.outerHTML = "");
+    }
+
+    function isHitting() {
+        return (
+            fruitX >= catX &&
+            fruitY >= catY - 1 &&
+            fruitX <= catX + 7 * 9 &&
+            fruitY <= catY - 1 + 3 * 20
+        );
+    }
+
+    function drawFruit() {
+        fruitY = Math.floor(Math.random() * maxFruitY); // Ensure fruit is within visible area
+        fruitX = Math.floor(Math.random() * maxFruitX); // Ensure fruit is within visible area
+        document.getElementById("fruit").style.left = fruitX + "px";
+        document.getElementById("fruit").style.top = fruitY + "px";
+    }
+
+    drawFruit();
+
+    function generateArrow() {
+        if (Math.floor(Math.random() * 35) === 0) { // Less frequent appearance
+            const arrow = document.createElement("div");
+            arrow.className = "arrow";
+            arrow.innerText = ">";
+            arrow.style.left = gameWidth + "px";
+            arrow.style.top = Math.floor(Math.random() * maxFruitY) + "px"; // Ensure arrow is within visible area
+            document.body.appendChild(arrow);
+            arrows.push(arrow);
+        }
+        if (Math.floor(Math.random() * 35) === 0) { // Less frequent appearance
+            const arrow = document.createElement("div");
+            arrow.className = "arrow";
+            arrow.innerText = ">";
+            arrow.style.left = gameWidth + "px";
+            arrow.style.top = Math.floor(Math.random() * maxFruitY) + "px"; // Ensure arrow is within visible area
+            document.body.appendChild(arrow);
+            arrows.push(arrow);
+        }
+        if (Math.floor(Math.random() * 35) === 0) { // Less frequent appearance
+            const arrow = document.createElement("div");
+            arrow.className = "arrow";
+            arrow.innerText = ">";
+            arrow.style.left = gameWidth + "px";
+            arrow.style.top = Math.floor(Math.random() * maxFruitY) + "px"; // Ensure arrow is within visible area
+            document.body.appendChild(arrow);
+            arrows.push(arrow);
+        }
+        if (Math.floor(Math.random() * 35) === 0) { // Less frequent appearance
+            const arrow = document.createElement("div");
+            arrow.className = "arrow";
+            arrow.innerText = ">";
+            arrow.style.left = gameWidth + "px";
+            arrow.style.top = Math.floor(Math.random() * maxFruitY) + "px"; // Ensure arrow is within visible area
+            document.body.appendChild(arrow);
+            arrows.push(arrow);
+        }
+        if (Math.floor(Math.random() * 2) === 0) { // Less frequent appearance
+            const arrow = document.createElement("div");
+            arrow.className = "arrow";
+            arrow.innerText = ">";
+            arrow.style.left = gameWidth + "px";
+            arrow.style.top = Math.floor(Math.random() * maxFruitY) + "px"; // Ensure arrow is within visible area
+            document.body.appendChild(arrow);
+            arrows.push(arrow);
+        }
+    }
+
+    function updateGame() {
+        if (!isPaused) {
+
+            document.querySelectorAll(".cat-line").forEach((line, index) => {
+                if (index === 0) {
+                    line.style.top = `${catY}px`;
+                    line.style.left = `${catX}px`;
+                } else if (index === 1) {
+                    line.style.top = `${catY + 20}px`;
+                    line.style.left = `${catX}px`;
+                } else if (index === 2) {
+                    line.style.top = `${catY + 40}px`;
+                    line.style.left = `${catX}px`;
+                }
+            });
+
+            if (isHitting()) {
+                score++;
+                document.getElementById("scoreboard").innerHTML = "Score: " + score;
+                drawFruit();
+                if (lives + 1 <= 13) { // Limit hearts to 13
+                    lives += 1; // Gain 1 life when touching a fruit
+                }
+            }
+
+
+            if (Math.floor(Math.random() * 100) == 0) {
+                generateArrow();
+            }
+        }
+    }
+
+    function moveArrows() {
+        arrows.forEach((arrow, index) => {
+                arrow.style.left = parseInt(arrow.style.left) - 9 + "px"; // Arrows move every 100ms, 9px to the left
+                if (parseInt(arrow.style.left) + 20 <= 0) {
+                    arrow.remove();
+                    arrows.splice(index, 1);
+                }
+
+                if (
+                    parseInt(arrow.style.left) >= catX &&
+                    parseInt(arrow.style.top) >= catY - 1 &&
+                    parseInt(arrow.style.left) <= catX + 7 * 9 &&
+                    parseInt(arrow.style.top) <= catY - 1 + 3 * 20
+                ){
+                    lives -= 1; // Lose 1 life when touching an arrow
+                    arrow.remove();
+                    arrows.splice(index, 1);
+                    if (lives <= 0) {
+                        isPaused;
+                        clearInterval(intervalArrows);
+                        clearInterval(intervalGame);
+                        clearInterval(intervalHearts);
+                        clearInterval(intervalScore);
+                        gameOver();
+                    }
+                }
+            });
+    }
+
+    function moveCat(direction) {
+        if (!isPaused) {
+            if (direction === "w" && catY > 0) {
+                catY -= 20;
+            } else if (direction === "a" && catX > 0) {
+                catX -= 9;
+            } else if (direction === "s" && catY + 60 < gameHeight) {
+                catY += 20;
+            } else if (direction === "d" && catX + 20 < gameWidth) {
+                catX += 9;
+            }
+
+            if (direction === " ") { // Spacebar action
+                if (lives > 0) {
+                    catX = Math.floor(Math.random() * maxFruitX); // Teleport player to a random location
+                    catY = Math.floor(Math.random() * maxFruitY);
+                    lives -= 0.5; // Subtract 0.5 life
+                    updateScore();
+                } else {
+                    resetGame();
+                }
+            }
+
+            updateGame();
+        }
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        if (isPaused) {
+            document.getElementById("gameover").style.display = "block";
+            document.getElementById("gameover").style.top = window.innerHeight / 2 - 100 + "px";
+            document.getElementById("gameover").style.left = window.innerWidth / 2 - 300 + "px";
+            document.getElementById("gameover").style.width = "600px";
+            document.getElementById("gameover").style.height = "200px";
+            document.getElementById("gameover").innerHTML = `
+                <span class="game-over-message">Game Paused</span>
+                <div>Press P to resume.</div>
+            `;
+            
+            clearInterval(intervalArrows);
+            clearInterval(intervalGame);
+            clearInterval(intervalHearts);
+            clearInterval(intervalScore);
+        } else {
+            document.getElementById("gameover").style.display = "none";
+            intervalHearts = setInterval(updateHearts, 10); // Update hearts every 100ms
+
+            intervalScore = setInterval(updateScore, 10); // Update score every 100ms
+
+            intervalGame = setInterval(updateGame, 10); // Update game every 50ms
+
+            intervalArrows = setInterval(moveArrows, 100)
+        }
+    }
+
+    function gameOver() {
+        document.getElementById("gameover").style.display = "block";
+        document.getElementById("gameover").style.top = window.innerHeight / 2 - 100 + "px";
+        document.getElementById("gameover").style.left = window.innerWidth / 2 - 300 + "px";
+        document.getElementById("gameover").style.width = "600px";
+        document.getElementById("gameover").style.height = "200px";
+        if (deviceType === 'mobile') {
+            document.getElementById("gameover").innerHTML = `
+                <span class="game-over-message">Game Over</span>
+                <div>Score: ${score}</div>
+                <div>Tap the screen to try again.</div>
+            `;
+        } else {
+            document.getElementById("gameover").innerHTML = `
+                <span class="game-over-message">Game Over</span>
+                <div>Score: ${score}</div>
+                <div>Press any key to try again.</div>
+            `;
+        }
+        if (deviceType === 'mobile') {
+            document.addEventListener("touchstart", function() {
+                resetGame();
+                document.removeEventListener("touchstart", arguments.callee);
+            });
+        } else {
+            document.addEventListener("keypress", function() {
+                resetGame();
+                document.removeEventListener("keydown", arguments.callee);
+            });
+        }
+    }
+
+    function resetGame() {
+       window.reloadPage()
+       window.reload()
+    }
+
+    // Update the hearts display
+    function updateHearts() {
+        const heartContainer = document.getElementById("hearts");
+        heartContainer.innerHTML = "";
+        const fullHearts = Math.min(Math.floor(lives), 13); // Limit hearts to 13
+        if(deviceType == "desktop") {
+            const halfHeart = lives % 1 !== 0;
+            for (let i = 0; i < fullHearts; i++) {
+                const heart = document.createElement("span");
+                heart.textContent = "♥";
+                heart.style.color = "red";
+                heart.style.fontSize = "25px";
+                heartContainer.appendChild(heart);
+            }
+            if (halfHeart) {
+                const heart = document.createElement("span");
+                heart.textContent = "♥";
+                heart.style.animation = "blink-animation 1s infinite";
+                heart.style.color = "red";
+                heart.style.fontSize = "25px";
+                heartContainer.appendChild(heart);
+            }
+        } else {
+            heartContainer.innerText = lives;
+        }
+    }
+
+    // Update the score display
+    function updateScore() {
+        document.getElementById("scoreboard").innerHTML = "Score: " + score;
+    }
+
+    // Animation for heart blinking
+    document.head.innerHTML += `
+        <style>
+            @keyframes blink-animation {
+                0% {opacity: 0;}
+                50% {opacity: 1;}
+                100% {opacity: 0;}
+            }
+        </style>
+    `;
+
+    // Initial display of hearts and score
+    updateHearts();
+    updateScore();
+
+    // Game loop
+    let intervalHearts = setInterval(updateHearts, 10); // Update hearts every 100ms
+
+    let intervalScore = setInterval(updateScore, 10); // Update score every 100ms
+
+    let intervalGame = setInterval(updateGame, 10); // Update game every 50ms
+
+    let intervalArrows = setInterval(moveArrows, 100)
+</script>
+
+</body>
+</html>
